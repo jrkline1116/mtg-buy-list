@@ -1,0 +1,67 @@
+{
+  "decks": [
+    "Tifa",
+    "Black Waltz",
+    "Squirrel Girl",
+    "Light Paws",
+    "Lathril",
+    "Dina",
+    "Ardbert",
+    "Samut",
+    "Rin and Seri",
+    "Brago",
+    "Aesi",
+    "Krenko"
+  ],
+  "cards": [
+    { "deck": "Tifa", "name": "Royal Treatment" },
+    { "deck": "Tifa", "name": "Forgotten Ancient" },
+    { "deck": "Tifa", "name": "Belt of Giant Strength" },
+    { "deck": "Tifa", "name": "Burgeoning" },
+    { "deck": "Tifa", "name": "Sword of Feast and Famine" },
+
+    { "deck": "Black Waltz", "name": "Hexing Squelcher" },
+    { "deck": "Black Waltz", "name": "Birgi, God of Storytelling" },
+    { "deck": "Black Waltz", "name": "Cabal Ritual" },
+    { "deck": "Black Waltz", "name": "Dark Ritual" },
+    { "deck": "Black Waltz", "name": "Seething Song" },
+    { "deck": "Black Waltz", "name": "Tablet of Discovery" },
+    { "deck": "Black Waltz", "name": "Wheel of Fortune" },
+    { "deck": "Black Waltz", "name": "Transpose" },
+
+    { "deck": "Squirrel Girl", "name": "Scurry Oak" },
+    { "deck": "Squirrel Girl", "name": "Ivy Lane Denizen" },
+
+    { "deck": "Light Paws", "name": "Angelic Destiny" },
+    { "deck": "Light Paws", "name": "Optimistic Scavenger" },
+    { "deck": "Light Paws", "name": "Timely Ward" },
+    { "deck": "Light Paws", "name": "Daybreak Coronet" },
+    { "deck": "Light Paws", "name": "Idolized" },
+    { "deck": "Light Paws", "name": "Shielded by Faith" },
+    { "deck": "Light Paws", "name": "Archon of Sun's Grace" },
+    { "deck": "Light Paws", "name": "On Thin Ice" },
+    { "deck": "Light Paws", "name": "Ravnica at War" },
+    { "deck": "Light Paws", "name": "Austere Command" },
+    { "deck": "Light Paws", "name": "Farewell" },
+    { "deck": "Light Paws", "name": "Helm of the Gods" },
+    { "deck": "Light Paws", "name": "Serra's Sanctum" },
+    { "deck": "Light Paws", "name": "Starfield Mystic" },
+    { "deck": "Light Paws", "name": "Ossification" },
+    { "deck": "Light Paws", "name": "Thran Power Suit" },
+    { "deck": "Light Paws", "name": "Faith Unbroken" },
+    { "deck": "Light Paws", "name": "Armored Ascension" },
+    { "deck": "Light Paws", "name": "Unquestioned Authority" },
+    { "deck": "Light Paws", "name": "Eland Umbra" },
+    { "deck": "Light Paws", "name": "Realmbreaker's Grasp" },
+
+    { "deck": "Ardbert", "name": "Erode" },
+    { "deck": "Ardbert", "name": "Abzan Falconer" },
+    { "deck": "Ardbert", "name": "Liliana the Faultless" },
+    { "deck": "Ardbert", "name": "Cauldron Haze" },
+
+    { "deck": "Aesi", "name": "Hexhaven Invigorator" },
+    { "deck": "Aesi", "name": "Carnivorous Cultivator" },
+    { "deck": "Aesi", "name": "Seer's Sundial" },
+    { "deck": "Aesi", "name": "Spawning Kraken" }
+  ]
+}

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MTG Buy List</title>
+<meta name="description" content="Shared Magic: The Gathering card wishlist">
+<meta name="theme-color" content="#1f3864">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-row">
+    <h1 id="app-title">MTG Buy List</h1>
+    <div class="topbar-actions">
+      <label class="whoami">
+        <span>You are</span>
+        <select id="whoami"></select>
+      </label>
+      <button id="btn-menu" class="icon-btn" title="More" aria-label="More">⋯</button>
+    </div>
+  </div>
+
+  <nav id="deck-tabs" class="deck-tabs" aria-label="Decks"></nav>
+</header>
+
+<main>
+  <section class="add-bar">
+    <div class="combo">
+      <input id="card-input" type="text" placeholder="Type a card name…"
+             autocomplete="off" autocapitalize="off" spellcheck="false"
+             aria-label="Card name" aria-expanded="false" aria-controls="suggestions">
+      <ul id="suggestions" class="suggestions" role="listbox" hidden></ul>
+    </div>
+    <button id="btn-add" class="primary">Add</button>
+  </section>
+
+  <section class="toolbar">
+    <div class="filters">
+      <select id="filter-status" aria-label="Filter by status">
+        <option value="">All statuses</option>
+        <option value="Want">Want</option>
+        <option value="Ordered">Ordered</option>
+        <option value="Owned">Owned</option>
+        <option value="Passed">Passed</option>
+      </select>
+      <select id="filter-who" aria-label="Filter by person"></select>
+      <select id="sort-by" aria-label="Sort">
+        <option value="created">Newest first</option>
+        <option value="name">Name A–Z</option>
+        <option value="price-desc">Price high–low</option>
+        <option value="price-asc">Price low–high</option>
+        <option value="priority">Priority</option>
+      </select>
+    </div>
+    <div class="totals" id="totals"></div>
+  </section>
+
+  <div id="status-line" class="status-line" role="status" aria-live="polite"></div>
+  <div id="cards" class="cards"></div>
+  <div id="empty" class="empty" hidden>
+    <p>Nothing here yet.</p>
+    <p class="muted">Type a card name above to start the list for this deck.</p>
+  </div>
+</main>
+
+<!-- card detail -->
+<dialog id="detail">
+  <form method="dialog" class="detail-inner">
+    <button class="close" value="close" aria-label="Close">×</button>
+    <div class="detail-body"></div>
+  </form>
+</dialog>
+
+<!-- overflow menu -->
+<dialog id="menu">
+  <div class="menu-inner">
+    <h2>Menu</h2>
+    <button data-action="new-deck">New deck…</button>
+    <button data-action="rename-deck">Rename this deck…</button>
+    <button data-action="refresh-prices">Refresh prices</button>
+    <button data-action="import-seed">Import list from the spreadsheet</button>
+    <button data-action="delete-deck" class="danger">Delete this deck…</button>
+    <hr>
+    <a href="https://buymeacoffee.com/jrkline1116" target="_blank" rel="noopener"
+       class="support">Buy me a coffee ☕</a>
+    <p class="fineprint">
+      Card data and images from Scryfall. Unofficial Fan Content — not affiliated
+      with Wizards of the Coast.
+    </p>
+    <button class="close-menu">Close</button>
+  </div>
+</dialog>
+
+<script src="config.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
