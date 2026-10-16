@@ -1,5 +1,5 @@
 /**
- * MTG Buy List — shared card wishlist.
+ * Commander Organizer — shared Commander deck wishlist and card finder.
  *
  * Data lives in Supabase (see supabase-setup.sql). Card data and images come
  * from Scryfall, using the static cards.scryfall.io CDN rather than the
@@ -639,25 +639,78 @@ function paintCommander() {
   if (btn) btn.onclick = setCommander;
 }
 
-async function setCommander() {
-  const deck = activeDeck;
-  const current = commanders[deck] ? commanders[deck].name : '';
-  const name = prompt(`Commander for ${deck}:`, current);
-  if (!name || !name.trim()) return;
+/**
+ * Commander picker: shows every commander whose name shares words with the
+ * deck name, as clickable cards, plus a search box for anything else.
+ */
+const picker = {
+  dlg: document.getElementById('cmdr-picker'),
+  title: document.getElementById('picker-title'),
+  search: document.getElementById('picker-search'),
+  status: document.getElementById('picker-status'),
+  results: document.getElementById('picker-results')
+};
+
+function commanderQuery(text) {
+  const words = String(text).split(/[\s,\-]+/)
+    .filter((w) => w.length > 1 && !/^(and|the|of)$/i.test(w))
+    .map((w) => w.replace(/[^\w']/g, ''))
+    .filter(Boolean);
+  return words.length ? 'is:commander ' + words.map((w) => `name:${w}`).join(' ') : '';
+}
+
+async function loadPickerResults(text) {
+  const q = commanderQuery(text);
+  picker.results.innerHTML = '';
+  if (!q) { picker.status.textContent = 'Type part of a commander\'s name.'; return; }
+  picker.status.textContent = 'Searching…';
   try {
-    const card = await scryfallNamed(name.trim());
-    commanders[deck] = { name: card.name, ci: ciString(card), guessed: false };
-    try { localStorage.setItem('cmdr:' + deck, card.name); } catch { /* storage off */ }
-    const { error } = await db.from('decks').update({ commander: card.name }).eq('name', deck);
-    say(error
-      ? `Commander set to ${card.name} on this device. To share it with everyone, run the one-line update in supabase-setup.sql.`
-      : `Commander set to ${card.name}.`);
-    paintCommander();
-    if (!el.finder.hidden && lastFind) findCards(lastFind);
+    const found = await scrySearch(q);
+    const current = commanders[activeDeck] && commanders[activeDeck].name;
+    picker.status.textContent = found.length
+      ? (found.length === 1 ? 'One match.' : `${found.length} matches — tap the one you play.`)
+      : 'No commanders matched. Try a different part of the name.';
+    found.slice(0, 30).forEach((card) => {
+      const face = faceOf(card);
+      const img = face.image_uris ? face.image_uris.normal || face.image_uris.small : '';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pick' + (card.name === current ? ' current' : '');
+      btn.innerHTML = `
+        <img loading="lazy" alt="" src="${escapeHtml(img)}">
+        <span class="pick-name">${escapeHtml(card.name)}</span>
+        <span class="pick-ci">${ciString(card)}${card.name === current ? ' · current' : ''}</span>`;
+      btn.onclick = () => chooseCommander(card);
+      picker.results.appendChild(btn);
+    });
   } catch (err) {
-    say(err.message || String(err), true);
+    picker.status.textContent = err.message || String(err);
   }
 }
+
+async function setCommander() {
+  const deck = activeDeck;
+  picker.title.textContent = `Commander for ${deck}`;
+  picker.search.value = '';
+  picker.dlg.showModal();
+  await loadPickerResults(deck);
+}
+
+async function chooseCommander(card) {
+  const deck = activeDeck;
+  picker.dlg.close();
+  commanders[deck] = { name: card.name, ci: ciString(card), guessed: false };
+  const row = decks.find((d) => d.name === deck);
+  if (row) row.commander = card.name;
+  try { localStorage.setItem('cmdr:' + deck, card.name); } catch { /* storage off */ }
+  paintCommander();
+  const { error } = await db.from('decks').update({ commander: card.name }).eq('name', deck);
+  say(error ? `Saved on this device only: ${error.message}` : `Commander set to ${card.name}.`, !!error);
+  if (!el.finder.hidden && lastFind) findCards(lastFind);
+}
+
+picker.search.addEventListener('input', debounce(() => loadPickerResults(picker.search.value), 300));
+document.getElementById('picker-close').onclick = () => picker.dlg.close();
 
 // ---------------------------------------------------- card finder
 
@@ -748,7 +801,7 @@ async function findCards(text) {
 // ------------------------------------------------------------ wiring up
 
 function wire() {
-  el.title.textContent = CFG.TITLE || 'MTG Buy List';
+  el.title.textContent = CFG.TITLE || 'Commander Organizer';
   document.title = el.title.textContent;
 
   el.whoami.innerHTML = PEOPLE

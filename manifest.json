@@ -1,7 +1,7 @@
 {
-  "name": "MTG Buy List",
-  "short_name": "Buy List",
-  "description": "Shared Magic: The Gathering card wishlist",
+  "name": "Commander Organizer",
+  "short_name": "Commanders",
+  "description": "Shared Commander deck wishlist and card finder",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

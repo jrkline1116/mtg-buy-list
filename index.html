@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>MTG Buy List</title>
-<meta name="description" content="Shared Magic: The Gathering card wishlist">
+<title>Commander Organizer</title>
+<meta name="description" content="Shared Commander deck wishlist and card finder">
 <meta name="theme-color" content="#1f3864">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
@@ -15,7 +15,7 @@
 
 <header class="topbar">
   <div class="topbar-row">
-    <h1 id="app-title">MTG Buy List</h1>
+    <h1 id="app-title">Commander Organizer</h1>
     <div class="topbar-actions">
       <label class="whoami">
         <span>You are</span>
@@ -87,6 +87,18 @@
     <button class="close" value="close" aria-label="Close">×</button>
     <div class="detail-body"></div>
   </form>
+</dialog>
+
+<!-- commander picker -->
+<dialog id="cmdr-picker">
+  <div class="picker-inner">
+    <button class="close" id="picker-close" aria-label="Close">×</button>
+    <h2 id="picker-title">Choose a commander</h2>
+    <input id="picker-search" type="text" placeholder="Search for a different commander…"
+           autocomplete="off" spellcheck="false" aria-label="Search commanders">
+    <p id="picker-status" class="picker-status"></p>
+    <div id="picker-results" class="picker-results"></div>
+  </div>
 </dialog>
 
 <!-- overflow menu -->

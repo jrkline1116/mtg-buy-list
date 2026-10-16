@@ -15,5 +15,5 @@ window.CONFIG = {
   PEOPLE: ['John', 'Nick'],
 
   // Appears in the header.
-  TITLE: 'MTG Buy List'
+  TITLE: 'Commander Organizer'
 };

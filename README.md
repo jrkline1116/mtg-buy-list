@@ -1,4 +1,4 @@
-# MTG Buy List
+# Commander Organizer
 
 A shared Magic: The Gathering card wishlist. One tab per Commander deck, card
 images and prices from Scryfall, and no login for anyone — your friend
@@ -58,7 +58,7 @@ window.CONFIG = {
   SUPABASE_URL: 'https://xxxxx.supabase.co',
   SUPABASE_ANON_KEY: 'eyJ...',
   PEOPLE: ['John', 'Dave'],
-  TITLE: 'MTG Buy List'
+  TITLE: 'Commander Organizer'
 };
 ```
 
