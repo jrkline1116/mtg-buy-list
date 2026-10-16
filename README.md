@@ -93,6 +93,18 @@ chrome.
 | **Refresh prices** | ⋯ menu. Re-checks every card against Scryfall in batches. |
 | **Decks** | ⋯ menu to add, rename or delete. Renaming moves its cards with it. |
 
+### Finding cards by what they do
+
+Type a description instead of a name, such as `destroy target enchantment`,
+`draw a card`, or `exile target creature`, and choose **🔍 Find cards that…**
+at the bottom of the dropdown (or just press Enter). You get up to 24 cards in
+the deck's commander's colors, Commander-legal, most-played first, each with
+an Add button.
+
+The commander is worked out from the deck name and shown under the search bar.
+If it guessed wrong, click **change**. Advanced: anything with a colon is sent
+to Scryfall as-is, so `otag:removal` or `t:equipment o:"double strike"` work too.
+
 Changes appear on the other person's screen within a second or two — no
 refreshing, no "are you looking at the latest version".
 

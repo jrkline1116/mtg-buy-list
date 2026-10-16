@@ -433,3 +433,104 @@ button.delete {
   font-size: .88rem;
   cursor: pointer;
 }
+
+/* ------------------------------------------------- commander + finder */
+
+.commander-line {
+  font-size: .85rem;
+  color: var(--muted);
+  margin: -4px 0 14px;
+  min-height: 1.2em;
+}
+.commander-line b { color: var(--text); font-weight: 650; }
+.commander-line button {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-left: 6px;
+  color: var(--navy-soft);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+@media (prefers-color-scheme: dark) { .commander-line button { color: #8fb0e0; } }
+
+.pips { letter-spacing: .08em; font-weight: 700; color: var(--text); }
+
+.suggestions li.find-row {
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+  padding-top: 11px;
+  color: var(--navy-soft);
+  font-weight: 600;
+}
+@media (prefers-color-scheme: dark) { .suggestions li.find-row { color: #8fb0e0; } }
+
+.finder {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px;
+  margin-bottom: 18px;
+}
+.finder-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.finder-head h2 { margin: 0; font-size: 1rem; }
+.finder-head .muted { margin: 2px 0 0; font-size: .82rem; color: var(--muted); }
+.close-x {
+  background: none;
+  border: 0;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.finder-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+.finder-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.finder-card img {
+  width: 100%;
+  aspect-ratio: 488 / 680;
+  border-radius: 8px;
+  display: block;
+  background: var(--bg);
+  cursor: zoom-in;
+}
+.finder-card .fc-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: .78rem;
+  gap: 6px;
+}
+.finder-card .fc-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.finder-card button {
+  border: 1px solid var(--navy);
+  background: var(--navy);
+  color: #fff;
+  border-radius: 7px;
+  padding: 6px 8px;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.finder-card button:disabled {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--line);
+  cursor: default;
+}

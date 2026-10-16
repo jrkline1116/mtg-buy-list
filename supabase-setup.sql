@@ -65,3 +65,9 @@ begin
   exception when duplicate_object then null;
   end;
 end $$;
+
+-- ------------------------------------------------------------ commanders
+-- Lets each deck remember its commander for everyone, so card suggestions
+-- stay in the right colors. Without it the app guesses from the deck name
+-- and remembers corrections only on the device where you made them.
+alter table decks add column if not exists commander text;

@@ -30,7 +30,13 @@ const el = {
   sortBy: $('#sort-by'),
   detail: $('#detail'),
   menu: $('#menu'),
-  menuBtn: $('#btn-menu')
+  menuBtn: $('#btn-menu'),
+  commanderLine: $('#commander-line'),
+  finder: $('#finder'),
+  finderTitle: $('#finder-title'),
+  finderSub: $('#finder-sub'),
+  finderResults: $('#finder-results'),
+  finderClose: $('#finder-close')
 };
 
 let db = null;
@@ -184,6 +190,7 @@ async function loadAll() {
 function render() {
   renderTabs();
   renderCards();
+  renderCommander();
 }
 
 function renderTabs() {
@@ -195,6 +202,7 @@ function renderTabs() {
     b.setAttribute('aria-current', String(deck.name === activeDeck));
     b.innerHTML = `${escapeHtml(deck.name)}${n ? ` <span class="count">${n}</span>` : ''}`;
     b.onclick = () => {
+      if (activeDeck !== deck.name) el.finder.hidden = true;
       activeDeck = deck.name;
       localStorage.setItem('deck', activeDeck);
       render();
@@ -288,19 +296,21 @@ function cardNode(c) {
   return node;
 }
 
-function openDetail(c) {
+function openDetail(c, preview = false) {
   const box = el.detail.querySelector('.detail-body');
   box.innerHTML = `
     ${c.image_normal ? `<img alt="${escapeHtml(c.name)}" src="${escapeHtml(c.image_normal)}">` : ''}
     <h2>${escapeHtml(c.name)}</h2>
     <p class="tl">${escapeHtml(c.type_line || '')} ${c.mana_cost ? '· ' + escapeHtml(c.mana_cost) : ''}</p>
     ${c.oracle_text ? `<div class="oracle">${escapeHtml(c.oracle_text)}</div>` : ''}
-    <textarea placeholder="Notes…">${escapeHtml(c.notes || '')}</textarea>
+    ${preview ? '' : `<textarea placeholder="Notes…">${escapeHtml(c.notes || '')}</textarea>`}
     <div class="detail-actions">
       <a href="${escapeHtml(c.scryfall_url || '#')}" target="_blank" rel="noopener">Open on Scryfall</a>
-      <button type="button" class="delete">Remove</button>
+      ${preview ? '' : '<button type="button" class="delete">Remove</button>'}
     </div>
   `;
+
+  if (preview) { el.detail.showModal(); return; }
 
   const ta = box.querySelector('textarea');
   ta.onchange = () => patch(c.id, { notes: ta.value });
@@ -336,20 +346,38 @@ async function addCard(name) {
   el.add.disabled = true;
   say(`Looking up ${name}…`);
   try {
-    const card = await scryfallNamed(name);
-    const row = { ...toRow(card), deck: activeDeck, who: me, status: 'Want' };
-    const { data, error } = await db.from('cards').insert(row).select().single();
-    if (error) throw error;
-    cards.push(data);
+    let card;
+    try {
+      card = await scryfallNamed(name);
+    } catch (err) {
+      // Not a card name — treat it as a description of what the card should do.
+      if (/could not find/.test(err.message)) {
+        hideSuggestions();
+        say('');
+        await findCards(name);
+        return;
+      }
+      throw err;
+    }
+    await addCardObject(card);
     el.input.value = '';
     hideSuggestions();
-    render();
-    say(`Added ${data.name}.`);
   } catch (err) {
     say(err.message || String(err), true);
   } finally {
     el.add.disabled = false;
   }
+}
+
+/** Adds a full Scryfall card object to the active deck. */
+async function addCardObject(card, deck = activeDeck) {
+  const row = { ...toRow(card), deck, who: me, status: 'Want' };
+  const { data, error } = await db.from('cards').insert(row).select().single();
+  if (error) throw error;
+  cards.push(data);
+  render();
+  say(`Added ${data.name} to ${deck}.`);
+  return data;
 }
 
 async function refreshPrices() {
@@ -518,12 +546,15 @@ function hideSuggestions() {
   suggIndex = -1;
 }
 
-function showSuggestions(names) {
-  suggestions = names;
+let suggQuery = '';
+
+function showSuggestions(names, query) {
+  suggestions = names.slice(0, 8);
+  suggQuery = query;
   suggIndex = -1;
-  if (!names.length) return hideSuggestions();
-  el.sugg.innerHTML = names
-    .map((n, i) => `<li role="option" data-i="${i}">${escapeHtml(n)}</li>`).join('');
+  el.sugg.innerHTML =
+    suggestions.map((n, i) => `<li role="option" data-i="${i}">${escapeHtml(n)}</li>`).join('') +
+    `<li role="option" class="find-row" data-find="1">🔍 Find cards that “${escapeHtml(query)}”</li>`;
   el.sugg.hidden = false;
   el.input.setAttribute('aria-expanded', 'true');
 }
@@ -532,7 +563,7 @@ const onType = debounce(async () => {
   const q = el.input.value.trim();
   if (q.length < 2) return hideSuggestions();
   try {
-    showSuggestions(await scryfallAutocomplete(q));
+    showSuggestions(await scryfallAutocomplete(q), q);
   } catch { hideSuggestions(); }
 }, 220);
 
@@ -540,6 +571,178 @@ function highlight(i) {
   suggIndex = i;
   [...el.sugg.children].forEach((li, n) =>
     li.setAttribute('aria-selected', String(n === i)));
+}
+
+// ----------------------------------------------------- commanders
+
+/**
+ * Each deck's commander, used to limit suggestions to its colors.
+ * Saved in the decks table when the commander column exists (see
+ * supabase-setup.sql), otherwise in this browser. If nothing is saved,
+ * it is guessed from the deck name and shown so it can be corrected.
+ */
+const commanders = {};          // deck name -> { name, ci, guessed }
+const resolving = new Set();
+
+function ciString(card) {
+  const ci = (card.color_identity || []);
+  return ci.length ? ['W', 'U', 'B', 'R', 'G'].filter((c) => ci.includes(c)).join('') : 'C';
+}
+
+async function commanderFor(deck) {
+  if (commanders[deck]) return commanders[deck];
+
+  const row = decks.find((d) => d.name === deck);
+  let saved = row && row.commander;
+  if (!saved) { try { saved = localStorage.getItem('cmdr:' + deck); } catch { /* storage off */ } }
+
+  let card = null;
+  if (saved) {
+    try { card = await scryfallNamed(saved); } catch { /* fall through to a guess */ }
+  }
+  let guessed = false;
+  if (!card) {
+    const words = deck.split(/[\s,\-]+/).filter((w) => w.length > 1 && !/^(and|the|of)$/i.test(w));
+    const q = 'is:commander ' + words.map((w) => `name:${w}`).join(' ');
+    const res = await scryFetch(`${SCRY}/cards/search?order=edhrec&q=${encodeURIComponent(q)}`);
+    if (res.ok) { card = ((await res.json()).data || [])[0]; guessed = true; }
+  }
+  if (!card) return null;
+  commanders[deck] = { name: card.name, ci: ciString(card), guessed };
+  return commanders[deck];
+}
+
+function renderCommander() {
+  const deck = activeDeck;
+  if (!deck) { el.commanderLine.innerHTML = ''; return; }
+  const c = commanders[deck];
+  if (!c) {
+    el.commanderLine.textContent = 'Finding commander…';
+    if (!resolving.has(deck)) {
+      resolving.add(deck);
+      commanderFor(deck)
+        .catch(() => null)
+        .then(() => { resolving.delete(deck); if (activeDeck === deck) paintCommander(); });
+    }
+    return;
+  }
+  paintCommander();
+}
+
+function paintCommander() {
+  const c = commanders[activeDeck];
+  el.commanderLine.innerHTML = c
+    ? `Commander: <b>${escapeHtml(c.name)}</b> · <span class="pips">${c.ci}</span>` +
+      `${c.guessed ? ' (guessed from the deck name)' : ''}<button type="button" id="change-cmdr">change</button>`
+    : `Couldn't work out this deck's commander.<button type="button" id="change-cmdr">set it</button>`;
+  const btn = document.getElementById('change-cmdr');
+  if (btn) btn.onclick = setCommander;
+}
+
+async function setCommander() {
+  const deck = activeDeck;
+  const current = commanders[deck] ? commanders[deck].name : '';
+  const name = prompt(`Commander for ${deck}:`, current);
+  if (!name || !name.trim()) return;
+  try {
+    const card = await scryfallNamed(name.trim());
+    commanders[deck] = { name: card.name, ci: ciString(card), guessed: false };
+    try { localStorage.setItem('cmdr:' + deck, card.name); } catch { /* storage off */ }
+    const { error } = await db.from('decks').update({ commander: card.name }).eq('name', deck);
+    say(error
+      ? `Commander set to ${card.name} on this device. To share it with everyone, run the one-line update in supabase-setup.sql.`
+      : `Commander set to ${card.name}.`);
+    paintCommander();
+    if (!el.finder.hidden && lastFind) findCards(lastFind);
+  } catch (err) {
+    say(err.message || String(err), true);
+  }
+}
+
+// ---------------------------------------------------- card finder
+
+/**
+ * Turns a plain-English description ("destroy target enchantment") into a
+ * Scryfall search limited to the commander's colors and Commander-legal
+ * cards, ranked by how often they show up in Commander decks (EDHREC).
+ * Text that already looks like Scryfall syntax (has a colon) is passed
+ * through as-is, so "otag:removal" etc. also work.
+ */
+let lastFind = '';
+
+async function scrySearch(q) {
+  const res = await scryFetch(`${SCRY}/cards/search?order=edhrec&unique=cards&q=${encodeURIComponent(q)}`);
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error(`Scryfall returned ${res.status}.`);
+  return (await res.json()).data || [];
+}
+
+async function findCards(text) {
+  text = (text || '').trim();
+  if (!text || !activeDeck) return;
+  lastFind = text;
+
+  el.finder.hidden = false;
+  el.finderTitle.textContent = `Cards that “${text}”`;
+  el.finderSub.textContent = 'Searching…';
+  el.finderResults.innerHTML = '';
+
+  try {
+    const cmdr = await commanderFor(activeDeck);
+    const colors = cmdr ? ` id<=${cmdr.ci}` : '';
+    const limits = `${colors} f:commander -t:basic`;
+
+    let found;
+    if (text.includes(':')) {
+      found = await scrySearch(text + limits);
+    } else {
+      // Match every word rather than the exact phrase: "destroy target
+      // enchantment" should still find Disenchant ("destroy target artifact
+      // or enchantment"). EDHREC ordering floats the strong picks to the top.
+      const words = text.replace(/["()]/g, '').split(/\s+/)
+        .filter((w) => w.length > 2 && !/^(the|and|for|with|that|any|all|card|cards)$/i.test(w));
+      found = words.length ? await scrySearch(words.map((w) => `o:${w}`).join(' ') + limits) : [];
+    }
+
+    const top = found.slice(0, 24);
+    el.finderSub.textContent = top.length
+      ? `${cmdr ? `In ${cmdr.name}'s colors (${cmdr.ci}), ` : ''}Commander-legal, most-played first.`
+      : `Nothing matched${cmdr ? ` in ${cmdr.name}'s colors (${cmdr.ci})` : ''}. Try fewer or different words.`;
+
+    const onList = new Set(cards.filter((c) => c.deck === activeDeck)
+      .map((c) => c.name.split(' // ')[0].toLowerCase()));
+
+    el.finderResults.innerHTML = '';
+    top.forEach((card) => {
+      const face = faceOf(card);
+      const img = face.image_uris ? face.image_uris.small : '';
+      const price = card.prices && card.prices.usd ? '$' + Number(card.prices.usd).toFixed(2) : '—';
+      const already = onList.has(card.name.split(' // ')[0].toLowerCase());
+
+      const node = document.createElement('div');
+      node.className = 'finder-card';
+      node.innerHTML = `
+        <img loading="lazy" alt="${escapeHtml(card.name)}" src="${escapeHtml(img)}">
+        <div class="fc-meta"><span class="fc-name" title="${escapeHtml(card.name)}">${escapeHtml(card.name)}</span><span>${price}</span></div>
+        <button type="button" ${already ? 'disabled' : ''}>${already ? 'On the list' : 'Add'}</button>`;
+
+      node.querySelector('img').onclick = () => openDetail({ ...toRow(card), deck: activeDeck }, true);
+      const btn = node.querySelector('button');
+      btn.onclick = async () => {
+        btn.disabled = true;
+        try {
+          await addCardObject(card);
+          btn.textContent = 'Added';
+        } catch (err) {
+          btn.disabled = false;
+          say(err.message || String(err), true);
+        }
+      };
+      el.finderResults.appendChild(node);
+    });
+  } catch (err) {
+    el.finderSub.textContent = err.message || String(err);
+  }
 }
 
 // ------------------------------------------------------------ wiring up
@@ -563,18 +766,26 @@ function wire() {
       if (e.key === 'Enter' && el.input.value.trim()) addCard(el.input.value.trim());
       return;
     }
-    if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(suggIndex + 1, suggestions.length - 1)); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(suggIndex + 1, suggestions.length)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(Math.max(suggIndex - 1, 0)); }
     else if (e.key === 'Enter') {
       e.preventDefault();
-      addCard(suggIndex >= 0 ? suggestions[suggIndex] : el.input.value.trim());
+      const text = el.input.value.trim();
+      if (suggIndex === suggestions.length) { hideSuggestions(); findCards(text); }
+      else if (suggIndex >= 0) addCard(suggestions[suggIndex]);
+      else if (!suggestions.length) { hideSuggestions(); findCards(text); }
+      else addCard(text);
     } else if (e.key === 'Escape') hideSuggestions();
   });
 
   el.sugg.onclick = (e) => {
     const li = e.target.closest('li');
-    if (li) addCard(suggestions[Number(li.dataset.i)]);
+    if (!li) return;
+    if (li.dataset.find) { hideSuggestions(); findCards(suggQuery); }
+    else addCard(suggestions[Number(li.dataset.i)]);
   };
+
+  el.finderClose.onclick = () => { el.finder.hidden = true; };
 
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.combo')) hideSuggestions();
