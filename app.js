@@ -73,29 +73,52 @@ async function scryfallAutocomplete(q) {
   return json.data || [];
 }
 
-async function scryfallNamed(name) {
-  let res = await fetch(`${SCRY}/cards/named?exact=${encodeURIComponent(name)}`);
-  if (res.status === 404) {
-    res = await fetch(`${SCRY}/cards/named?fuzzy=${encodeURIComponent(name)}`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * fetch() that waits and retries when Scryfall rate-limits (429) or hiccups
+ * (5xx), instead of failing on the first refusal. Returns the final response.
+ */
+async function scryFetch(url, opts) {
+  let wait = 1000;
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(url, opts);
+    if (res.status !== 429 && res.status < 500) return res;
+    if (attempt >= 5) return res;
+    const after = Number(res.headers.get('Retry-After'));
+    await sleep(after ? after * 1000 : wait);
+    wait *= 2;
   }
+}
+
+async function scryfallNamed(name) {
+  let res = await scryFetch(`${SCRY}/cards/named?exact=${encodeURIComponent(name)}`);
+  if (res.status === 404) {
+    res = await scryFetch(`${SCRY}/cards/named?fuzzy=${encodeURIComponent(name)}`);
+  }
+  if (res.status === 429) throw new Error('Scryfall is busy — try again in a minute.');
   if (!res.ok) throw new Error(`Scryfall could not find "${name}".`);
   return res.json();
 }
 
-/** Batched lookup by Scryfall id, 75 at a time. */
-async function scryfallCollection(ids) {
+/**
+ * Batched lookup, 75 per request. Each identifier is either { id } or
+ * { name }. One request covers a whole deck, so this is far gentler on
+ * Scryfall's rate limit than looking cards up one at a time.
+ */
+async function scryfallCollection(identifiers) {
   const out = [];
-  for (let i = 0; i < ids.length; i += 75) {
-    const chunk = ids.slice(i, i + 75);
-    const res = await fetch(`${SCRY}/cards/collection`, {
+  for (let i = 0; i < identifiers.length; i += 75) {
+    const chunk = identifiers.slice(i, i + 75);
+    const res = await scryFetch(`${SCRY}/cards/collection`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifiers: chunk.map((id) => ({ id })) })
+      body: JSON.stringify({ identifiers: chunk })
     });
     if (!res.ok) throw new Error(`Scryfall returned ${res.status}.`);
     const json = await res.json();
     out.push(...(json.data || []));
-    await new Promise((r) => setTimeout(r, 120));
+    await sleep(150);
   }
   return out;
 }
@@ -153,6 +176,7 @@ async function loadAll() {
     activeDeck = decks.length ? decks[0].name : null;
   }
   render();
+  backfillMissing();
 }
 
 // -------------------------------------------------------------- rendering
@@ -333,7 +357,7 @@ async function refreshPrices() {
   if (!withIds.length) { say('Nothing to refresh.'); return; }
   say(`Refreshing ${withIds.length} prices…`);
   try {
-    const fresh = await scryfallCollection(withIds.map((c) => c.scryfall_id));
+    const fresh = await scryfallCollection(withIds.map((c) => ({ id: c.scryfall_id })));
     const byId = Object.fromEntries(fresh.map((c) => [c.id, c]));
     let n = 0;
     for (const c of withIds) {
@@ -355,10 +379,15 @@ async function refreshPrices() {
   }
 }
 
+/** Front-face, lowercased — so "Birgi, God of Storytelling" matches the stored "Birgi … // Harnfel …". */
+function nameKey(deck, name) {
+  return `${deck}::${String(name).split(' // ')[0].trim().toLowerCase()}`;
+}
+
 async function importSeed() {
-  if (!confirm('Import the deck list and cards from the spreadsheet? Existing entries are kept.')) return;
+  if (!confirm('Import the deck list and cards from the spreadsheet? Cards already here are kept, not duplicated.')) return;
   try {
-    const seed = await (await fetch('seed.json')).json();
+    const seed = await (await fetch('seed.json', { cache: 'no-store' })).json();
 
     for (let i = 0; i < seed.decks.length; i++) {
       const name = seed.decks[i];
@@ -366,24 +395,77 @@ async function importSeed() {
       await db.from('decks').insert({ name, sort_order: i });
     }
 
-    const existing = new Set(cards.map((c) => `${c.deck}::${c.name.toLowerCase()}`));
-    const todo = seed.cards.filter((c) => !existing.has(`${c.deck}::${c.name.toLowerCase()}`));
+    const existing = new Set(cards.map((c) => nameKey(c.deck, c.name)));
+    const todo = seed.cards.filter((c) => !existing.has(nameKey(c.deck, c.name)));
+    if (!todo.length) { await loadAll(); say('Everything from the spreadsheet is already here.'); return; }
 
-    let done = 0;
+    // One batched Scryfall request instead of one per card.
+    say(`Looking up ${todo.length} card${todo.length === 1 ? '' : 's'} on Scryfall…`);
+    const found = await scryfallCollection(todo.map((c) => ({ name: c.name })));
+    const byKey = {};
+    found.forEach((card) => {
+      byKey[card.name.toLowerCase()] = card;
+      byKey[card.name.split(' // ')[0].toLowerCase()] = card;
+    });
+
+    const rows = [];
+    const missed = [];
     for (const item of todo) {
-      say(`Importing ${++done} of ${todo.length}: ${item.name}…`);
-      try {
-        const card = await scryfallNamed(item.name);
-        await db.from('cards').insert({ ...toRow(card), deck: item.deck, status: 'Want' });
-      } catch (err) {
-        console.warn('skipped', item.name, err);
-      }
-      await new Promise((r) => setTimeout(r, 120));
+      const card = byKey[item.name.toLowerCase()];
+      const extra = {
+        deck: item.deck,
+        who: item.who || null,
+        priority: item.priority || null,
+        status: item.status || 'Want',
+        notes: item.notes || null
+      };
+      if (card) rows.push({ ...toRow(card), ...extra });
+      else { missed.push(item.name); rows.push({ name: item.name, ...extra }); }
     }
+
+    const { error } = await db.from('cards').insert(rows);
+    if (error) throw error;
     await loadAll();
-    say(`Import finished — ${done} card${done === 1 ? '' : 's'} processed.`);
+
+    say(missed.length
+      ? `Imported ${rows.length}. Scryfall didn't recognise: ${missed.join(', ')} — added by name; fix the spelling or remove them.`
+      : `Imported ${rows.length} card${rows.length === 1 ? '' : 's'}.`, missed.length > 0);
   } catch (err) {
     say(err.message || String(err), true);
+  }
+}
+
+/**
+ * Any card stored without Scryfall data (added by name only, or left half-done
+ * by an interrupted import) gets looked up and completed. Runs on every load,
+ * so gaps fill themselves instead of sitting there silently.
+ */
+let backfilling = false;
+async function backfillMissing() {
+  if (backfilling) return;
+  const bare = cards.filter((c) => !c.scryfall_id);
+  if (!bare.length) return;
+  backfilling = true;
+  try {
+    const found = await scryfallCollection(bare.map((c) => ({ name: c.name })));
+    const byKey = {};
+    found.forEach((card) => {
+      byKey[card.name.toLowerCase()] = card;
+      byKey[card.name.split(' // ')[0].toLowerCase()] = card;
+    });
+    let n = 0;
+    for (const c of bare) {
+      const card = byKey[c.name.toLowerCase()];
+      if (!card) continue;
+      const row = toRow(card);
+      const { error } = await db.from('cards').update(row).eq('id', c.id);
+      if (!error) { Object.assign(c, row); n++; }
+    }
+    if (n) { render(); say(`Filled in details for ${n} card${n === 1 ? '' : 's'}.`); }
+  } catch (err) {
+    console.warn('backfill', err);
+  } finally {
+    backfilling = false;
   }
 }
 
