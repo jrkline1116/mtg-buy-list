@@ -11,8 +11,8 @@ window.CONFIG = {
   SUPABASE_URL: 'https://uwmutfrsuhsubtkapgjn.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3bXV0ZnJzdWhzdWJ0a2FwZ2puIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNDUwMzgsImV4cCI6MjEwNzcyMTAzOH0.c9ZmKRBGv468AMN2-RP2BcNGpkbYkuKqcWpo7pyCiLM',
 
-  // Shown in the "who wants it" picker. Change the second name to your friend's.
-  PEOPLE: ['John', 'Friend'],
+  // Shown in the "who wants it" picker.
+  PEOPLE: ['John', 'Nick'],
 
   // Appears in the header.
   TITLE: 'MTG Buy List'
