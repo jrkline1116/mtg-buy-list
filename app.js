@@ -202,7 +202,7 @@ function renderTabs() {
     b.setAttribute('aria-current', String(deck.name === activeDeck));
     b.innerHTML = `${escapeHtml(deck.name)}${n ? ` <span class="count">${n}</span>` : ''}`;
     b.onclick = () => {
-      if (activeDeck !== deck.name) el.finder.hidden = true;
+      if (activeDeck !== deck.name) { el.finder.hidden = true; say(''); }
       activeDeck = deck.name;
       localStorage.setItem('deck', activeDeck);
       render();
@@ -705,7 +705,7 @@ async function chooseCommander(card) {
   try { localStorage.setItem('cmdr:' + deck, card.name); } catch { /* storage off */ }
   paintCommander();
   const { error } = await db.from('decks').update({ commander: card.name }).eq('name', deck);
-  say(error ? `Saved on this device only: ${error.message}` : `Commander set to ${card.name}.`, !!error);
+  say(error ? `Saved on this device only: ${error.message}` : `${deck} commander set to ${card.name}.`, !!error);
   if (!el.finder.hidden && lastFind) findCards(lastFind);
 }
 

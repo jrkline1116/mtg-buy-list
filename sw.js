@@ -4,7 +4,7 @@
  * you don't end up looking at a stale list or an old price.
  */
 
-const SHELL = 'buylist-shell-v4';
+const SHELL = 'buylist-shell-v5';
 const FILES = [
   './',
   './index.html',
